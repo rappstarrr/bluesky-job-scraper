@@ -26,7 +26,16 @@ jobs:
           BSKY_PASSWORD: ${{ secrets.BSKY_PASSWORD }}
         run: |
           python bluesky_scraper.py
-
+          
+      - name: Send email with job listings
+        env:
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
+          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+        run: |
+          python send_email.py
+          
       - name: Upload results artifact
         uses: actions/upload-artifact@v4
         with:
