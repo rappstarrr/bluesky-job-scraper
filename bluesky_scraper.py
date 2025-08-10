@@ -7,12 +7,12 @@ Original file is located at
     https://colab.research.google.com/drive/1vbhjzMaVJNwjz6yn8HdIXFlLDPJE37k3
 """
 
+import os
 from atproto import Client
 import pandas as pd
 
-# 1. Log in with your Bluesky handle & app password
-bsky_username = "ellierapp.bsky.social"
-bsky_password = "dryp-apx2-dj4h-m2qh"
+bsky_username = os.getenv("BSKY_USERNAME")
+bsky_password = os.getenv("BSKY_PASSWORD")
 
 client = Client()
 client.login(bsky_username, bsky_password)
