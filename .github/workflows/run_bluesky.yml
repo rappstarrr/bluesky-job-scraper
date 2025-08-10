@@ -1,0 +1,34 @@
+name: Daily Bluesky Job Scraper
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # 9AM NYC time (UTC-4)
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install atproto pandas openpyxl
+      
+      - name: Run scraper
+        env:
+          BSKY_USERNAME: ${{ secrets.BSKY_USERNAME }}
+          BSKY_PASSWORD: ${{ secrets.BSKY_PASSWORD }}
+        run: |
+          python bluesky_scraper.py
+
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: bluesky-jobs
+          path: bluesky_jobs_sorted.xlsx
