@@ -1,7 +1,7 @@
 import praw
 from atproto import Client
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
@@ -12,7 +12,7 @@ import schedule
 import time
 from typing import List, Dict
 
-# Load environment variables
+# Environment variables (no python-dotemail needed)
 REDDIT_CLIENT_ID = os.getenv('REDDIT_CLIENT_ID')
 REDDIT_CLIENT_SECRET = os.getenv('REDDIT_CLIENT_SECRET')
 REDDIT_USER_AGENT = os.getenv('REDDIT_USER_AGENT')
@@ -23,25 +23,26 @@ BSKY_PASSWORD = os.getenv('BSKY_PASSWORD')
 EMAIL_ADDRESS = os.getenv('EMAIL_ADDRESS')
 EMAIL_PASSWORD = os.getenv('EMAIL_PASSWORD')
 EMAIL_SMTP_SERVER = os.getenv('EMAIL_SMTP_SERVER')
-EMAIL_SMTP_PORT = int(os.getenv('EMAIL_SMTP_PORT', '587'))
+EMAIL_SMTP_PORT = int(os.getenv('EMAIL_SMTP_PORT', '587'))  # Default to 587
 
-# Search parameters
-KEYWORDS = ['psych', 'psychiatry', 'neuroscience', 'neurology', 'mental health', 
-            'research assistant', 'postbac', 'post-bac', 'post bac', 'lab tech']
-LOCATIONS = ['nyc', 'new york', 'remote', 'telehealth']
-JOB_TYPES = ['job', 'position', 'hire', 'opportunity', 'opening']
+# Search parameters - customize these!
+KEYWORDS = ['psych', 'psychiatry', 'neuroscience', 'neurology', 
+           'mental health', 'research assistant', 'postbac', 'lab tech', 'research coordinator',
+            'clinical research coordinator', 'CRC', 'project manager']
+LOCATIONS = ['nyc', 'new york', 'remote', 'telehealth', 'new york city', 'cuny', 'stony brook', 'columbia',
+            'mount sinai', 'nyu', 'langone', 'hunter college', 'fordham', 'chop', 'penn', 'upenn']
+JOB_TYPES = ['job', 'position', 'hire', 'opportunity', 'hiring', 'postgrad', 'postbac', 'full time']
 
 def is_job_post(title: str, text: str) -> bool:
     """Check if post contains relevant keywords"""
     content = f"{title.lower()} {text.lower()}"
-    has_keyword = any(keyword in content for keyword in KEYWORDS)
-    has_location = any(location in content for location in LOCATIONS)
-    has_job_type = any(job_type in content for job_type in JOB_TYPES)
-    
-    return has_keyword and (has_location or has_job_type)
+    return (any(kw in content for kw in KEYWORDS) and 
+            (any(loc in content for loc in LOCATIONS) or 
+             any(job_type in content for job_type in JOB_TYPES)))
 
 def scrape_reddit() -> List[Dict]:
     """Scrape Reddit for psychology jobs"""
+    print("Scraping Reddit...")
     reddit = praw.Reddit(
         client_id=REDDIT_CLIENT_ID,
         client_secret=REDDIT_CLIENT_SECRET,
@@ -50,142 +51,112 @@ def scrape_reddit() -> List[Dict]:
         password=REDDIT_PASSWORD
     )
     
-    subreddits = ["forhire", "jobs", "psychology", "neuro", "science", "remotework"]
     jobs = []
+    subreddits = ["forhire", "jobs", "psychology", "Neuropsychology", "remotework", "gradadmissions", "postbac", "clinicalpsych"]
     
     for sub in subreddits:
         try:
             for submission in reddit.subreddit(sub).new(limit=50):
                 if is_job_post(submission.title, submission.selftext):
                     jobs.append({
-                        'source': 'Reddit',
-                        'subreddit': sub,
+                        'source': f'Reddit/r/{sub}',
                         'title': submission.title,
-                        'text': submission.selftext,
+                        'text': submission.selftext[:500] + '...' if len(submission.selftext) > 500 else submission.selftext,
                         'url': f"https://reddit.com{submission.permalink}",
-                        'date': datetime.fromtimestamp(submission.created_utc),
+                        'date': datetime.fromtimestamp(submission.created_utc).strftime('%Y-%m-%d %H:%M'),
                         'author': submission.author.name if submission.author else 'Unknown'
                     })
         except Exception as e:
-            print(f"Error scraping Reddit subreddit {sub}: {e}")
+            print(f"⚠️ Error in r/{sub}: {str(e)}")
     
     return jobs
 
 def scrape_bluesky() -> List[Dict]:
     """Scrape Bluesky for psychology jobs"""
+    print("Scraping Bluesky...")
     client = Client()
     jobs = []
     
     try:
         client.login(BSKY_USERNAME, BSKY_PASSWORD)
-        
-        # Search for each keyword combination
         for keyword in KEYWORDS:
             response = client.app.bsky.feed.search_posts(q=f"{keyword} job")
             for post in response.posts:
-                text = post.record.text.lower()
                 if is_job_post(post.record.text, ""):
                     jobs.append({
                         'source': 'Bluesky',
                         'title': post.record.text[:100] + '...' if len(post.record.text) > 100 else post.record.text,
                         'text': post.record.text,
                         'url': f"https://bsky.app/profile/{post.author.handle}/post/{post.uri.split('/')[-1]}",
-                        'date': datetime.fromisoformat(post.record.created_at[:-5]),  # Remove timezone offset
+                        'date': datetime.fromisoformat(post.record.created_at[:-5]).strftime('%Y-%m-%d %H:%M'),
                         'author': post.author.handle
                     })
     except Exception as e:
-        print(f"Error scraping Bluesky: {e}")
+        print(f"⚠️ Bluesky error: {str(e)}")
     
     return jobs
 
-def create_excel_file(reddit_jobs: List[Dict], bluesky_jobs: List[Dict]) -> str:
-    """Create Excel file with separate sheets for Reddit and Bluesky jobs"""
-    filename = f"psych_jobs_{datetime.now().strftime('%Y-%m-%d')}.xlsx"
+def create_excel(reddit_jobs: List[Dict], bluesky_jobs: List[Dict]) -> str:
+    """Generate Excel file with two sheets"""
+    filename = f"psych_jobs_{datetime.now().strftime('%Y%m%d')}.xlsx"
     
-    # Convert to DataFrames
-    df_reddit = pd.DataFrame(reddit_jobs)
-    df_bluesky = pd.DataFrame(bluesky_jobs)
-    
-    # Sort by date (newest first)
-    if not df_reddit.empty:
-        df_reddit = df_reddit.sort_values('date', ascending=False)
-    if not df_bluesky.empty:
-        df_bluesky = df_bluesky.sort_values('date', ascending=False)
-    
-    # Save to Excel
     with pd.ExcelWriter(filename) as writer:
-        df_reddit.to_excel(writer, sheet_name='Reddit', index=False)
-        df_bluesky.to_excel(writer, sheet_name='Bluesky', index=False)
+        pd.DataFrame(reddit_jobs).to_excel(writer, sheet_name='Reddit', index=False)
+        pd.DataFrame(bluesky_jobs).to_excel(writer, sheet_name='Bluesky', index=False)
     
     return filename
 
 def send_email(filename: str, reddit_count: int, bluesky_count: int):
-    """Send email with Excel attachment"""
+    """Send results via email"""
     msg = MIMEMultipart()
     msg['From'] = EMAIL_ADDRESS
     msg['To'] = EMAIL_ADDRESS
-    msg['Subject'] = f"Daily Psychology Jobs Report - {datetime.now().strftime('%m/%d/%Y')}"
+    msg['Subject'] = f"🧠 Psychology Jobs Report - {datetime.now().strftime('%m/%d/%Y')}"
     
-    # Email body
     body = f"""
     <h2>Daily Psychology Jobs Report</h2>
-    <p>Date: {datetime.now().strftime('%m/%d/%Y')}</p>
-    <p>Found {reddit_count} new jobs on Reddit</p>
-    <p>Found {bluesky_count} new jobs on Bluesky</p>
+    <p><strong>Date:</strong> {datetime.now().strftime('%A, %B %d, %Y')}</p>
+    <p><strong>Reddit:</strong> {reddit_count} new posts</p>
+    <p><strong>Bluesky:</strong> {bluesky_count} new posts</p>
     """
     
-    if reddit_count == 0 and bluesky_count == 0:
-        body += "<p><strong>No new jobs found today.</strong></p>"
+    if reddit_count + bluesky_count == 0:
+        body += "<p>🔍 No new jobs found today.</p>"
     else:
-        body += "<p>See attached Excel file for details.</p>"
+        body += "<p>📎 See attached Excel file for details.</p>"
     
     msg.attach(MIMEText(body, 'html'))
     
-    # Attach Excel file if jobs were found
-    if reddit_count > 0 or bluesky_count > 0:
-        with open(filename, 'rb') as attachment:
+    if reddit_count + bluesky_count > 0:
+        with open(filename, 'rb') as f:
             part = MIMEBase('application', 'octet-stream')
-            part.set_payload(attachment.read())
+            part.set_payload(f.read())
         encoders.encode_base64(part)
-        part.add_header(
-            'Content-Disposition',
-            f'attachment; filename= {filename}',
-        )
+        part.add_header('Content-Disposition', f'attachment; filename="{filename}"')
         msg.attach(part)
     
-    # Send email
     with smtplib.SMTP(EMAIL_SMTP_SERVER, EMAIL_SMTP_PORT) as server:
         server.starttls()
         server.login(EMAIL_ADDRESS, EMAIL_PASSWORD)
         server.send_message(msg)
 
-def job_scraper_task():
-    """Main task to run daily"""
-    print(f"Running job scraper at {datetime.now()}")
-    
-    # Scrape both platforms
-    reddit_jobs = scrape_reddit()
-    bluesky_jobs = scrape_bluesky()
-    
-    # Create Excel file
-    filename = create_excel_file(reddit_jobs, bluesky_jobs)
-    
-    # Send email
-    send_email(filename, len(reddit_jobs), len(bluesky_jobs))
-    
-    print(f"Completed at {datetime.now()}. Found {len(reddit_jobs)} Reddit jobs and {len(bluesky_jobs)} Bluesky jobs.")
-
 def main():
-    # Run immediately (for testing)
-    job_scraper_task()
+    print(f"🚀 Starting job scrape at {datetime.now()}")
+    reddit = scrape_reddit()
+    bluesky = scrape_bluesky()
     
-    # Schedule daily at 9 AM
-    schedule.every().day.at("09:00").do(job_scraper_task)
+    if reddit or bluesky:
+        filename = create_excel(reddit, bluesky)
+        send_email(filename, len(reddit), len(bluesky))
+        print(f"✅ Found {len(reddit)} Reddit and {len(bluesky)} Bluesky jobs")
+    else:
+        send_email("", 0, 0)
+        print("❌ No jobs found today")
     
-    # Keep the script running
-    while True:
-        schedule.run_pending()
-        time.sleep(60)
+    print("🏁 Scrape complete")
 
 if __name__ == "__main__":
     main()
+    # For scheduled runs (uncomment):
+    # schedule.every().day.at("09:00").do(main)
+    # while True: schedule.run_pending(); time.sleep(60)
