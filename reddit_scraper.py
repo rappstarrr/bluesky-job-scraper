@@ -16,11 +16,13 @@ reddit = praw.Reddit(
 keywords = [
     "psychiatry", "psychology", "neuroscience",
     "research assistant", "lab manager", "postbac",
-    "bachelor's degree", "BA/BS", "RA position"
+    "bachelor's degree", "BA/BS", "RA position",
+    "psych", "research coordinator", "CRC",
+    "clinical research coordinator"
 ]
-locations = ["nyc", "new york", "brooklyn", "queens", "manhattan", "bronx", "remote", "work from home"]
+locations = ["nyc", "new york", "brooklyn", "queens", "manhattan", "bronx", "remote", "work from home", "new york city"]
 
-subreddits = ["psychology", "neuro", "jobs", "nycjobs", "sciencejobs"]
+subreddits = ["psychology", "neuro", "jobs", "nycjobs", "sciencejobs", "gradadmissions", "clinicalpsychology", "clinicalpsych"]
 
 posts_data = []
 
