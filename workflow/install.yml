@@ -1,2 +1,0 @@
-pip install praw atproto pandas schedule python-dotemail
-python job_scraper.py
