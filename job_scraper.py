@@ -8,7 +8,6 @@ from email.mime.base import MIMEBase
 from email.mime.text import MIMEText
 from email import encoders
 import os
-import schedule
 import time
 from typing import List, Dict
 
@@ -157,6 +156,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-    # For scheduled runs (uncomment):
-    # schedule.every().day.at("09:00").do(main)
-    # while True: schedule.run_pending(); time.sleep(60)
