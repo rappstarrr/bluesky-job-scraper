@@ -9,15 +9,21 @@ SMTP_PORT = int(os.getenv("EMAIL_SMTP_PORT"))
 
 # Email content
 msg = EmailMessage()
-msg["Subject"] = "Your Daily Bluesky Psychiatry Job Listings"
+msg["Subject"] = "Your Daily Bluesky and Reddit Psychiatry Job Listings"
 msg["From"] = EMAIL_ADDRESS
 msg["To"] = EMAIL_ADDRESS
-msg.set_content("Hey! Here is your latest Bluesky psychiatry research job listing spreadsheet attached.")
+msg.set_content("Hey! Here are your latest Bluesky and Reddit psychiatry research job listing spreadsheets attached. Go get 'em, chef.")
 
 # Attach the Excel file
 with open("bluesky_jobs_sorted.xlsx", "rb") as f:
     file_data = f.read()
     file_name = "bluesky_jobs_sorted.xlsx"
+msg.add_attachment(file_data, maintype="application", subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=file_name)
+
+# Attach the Excel file
+with open("reddit_jobs_sorted.xlsx", "rb") as f:
+    file_data = f.read()
+    file_name = "reddit_jobs_sorted.xlsx"
 msg.add_attachment(file_data, maintype="application", subtype="vnd.openxmlformats-officedocument.spreadsheetml.sheet", filename=file_name)
 
 # Send the email
