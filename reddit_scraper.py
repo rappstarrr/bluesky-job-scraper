@@ -71,6 +71,11 @@ email_user = os.getenv("EMAIL_USER")
 email_password = os.getenv("EMAIL_PASSWORD")
 email_send = os.getenv("EMAIL_SEND_TO")
 
+if df.empty:
+    html_table = "<p>No new psychiatry/neuro research jobs found on Reddit today.</p>"
+else:
+    html_table = make_html_table(df)
+
 msg = MIMEMultipart("alternative")
 msg["From"] = email_user
 msg["To"] = email_send
