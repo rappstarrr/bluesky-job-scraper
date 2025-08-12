@@ -1,0 +1,43 @@
+name: Daily Reddit Job Scraper
+
+on:
+  schedule:
+    - cron: '0 13 * * *'  # 9AM NYC time (UTC-4)
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      
+      - name: Install dependencies
+        run: pip install atproto pandas openpyxl
+      
+      - name: Run scraper
+        env:
+          REDDIT_USERNAME: ${{ secrets.REDDIT_USERNAME }}
+          REDDIT_PASSWORD: ${{ secrets.REDDIT_PASSWORD }}
+        run: |
+          python reddit_scraper.py
+          
+      - name: Send email with job listings
+        env:
+          EMAIL_ADDRESS: ${{ secrets.EMAIL_ADDRESS }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+          EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
+          EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+        run: |
+          python send_email.py
+          
+      - name: Upload results artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: reddit-jobs
+          path: reddit_jobs_sorted.xlsx
